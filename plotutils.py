@@ -105,10 +105,14 @@ def load_csv_files_in_dir(dirname):
 # Holder for axis info for plot routine
 # =================================================================
 class axis(object):
-    def __init__(self, label='No label', limits=None, 
-                 scale='linear', base=10, 
-                 format=lambda v,pos: str(int(v)), majloc=None, minloc=None,
+    def __init__(self,
+                 label='No label',
+                 limits=None,
+                 scale='linear', base=10,
+                 format=lambda v,pos: str(int(v)),
+                 majloc=None, minloc=None,
                  fontsize=12):
+
         self.label    = label
         self.limits   = limits
         self.scale    = scale
@@ -119,9 +123,22 @@ class axis(object):
         self.fontsize = fontsize
 
 # =================================================================
+# Holder for axis info for plot routine
+# =================================================================
+class column(object):
+    def __init__(self,
+                 label='No Column',
+                 format=lambda v: str(v),
+                 fontsize=12):
+        
+        self.label    = label
+        self.format   = format
+        self.fontsize = fontsize
+        
+# =================================================================
 # Plot combinations of series
 # =================================================================
-def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, size=(8,4)):
+def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, cparams=None, size=(8,4)):
     
     # select only the data wanted
     for series in select:
@@ -185,7 +202,7 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, size
         for g, grps in data.groupby(head):
             if len(tail)>0:
                 #print('Recursing into ({}) {}'.format(tail, g))
-                plot_series_recursive(grps, x, y, tail, g, ax1)
+                plot_series_recursive(grps, x, y, tail, (str(prefix) + ' ' + str(head) + '(' + str(g) + ')') if prefix!='' else (str(head) + '(' + str(g) + ')'), ax1)
             else:
                 #print('Processing into ({}) {}'.format(head, g))
                 # average each series in case three are duplicates
@@ -196,7 +213,7 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, size
                     linestyle='-',
                     marker=next(localmarkers),
                     markersize=6,
-                    label = str(prefix) + ',' + str(g) if prefix!='' else str(g)
+                    label = (str(prefix) + ' ' + str(head) + '(' + str(g) + ')') if prefix!='' else (str(head) + '(' + str(g) + ')')
                 )
   
     # ------------------------------------------------
@@ -252,8 +269,11 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, size
     
     if len(Cols)>0:
         for txt, col in zip(unique_col_entries, range(len(unique_col_entries))):
-            ax = graph_rows_cols[0][col] 
-            ax.annotate(str(Cols[0]) + ' ' + str(txt), 
+            ax = graph_rows_cols[0][col]
+            if (cparams is not None): 
+                if (cparams.format is not None):
+                    txt = cparams.format(Cols[0], txt)
+            ax.annotate(txt, 
                         xy=(0.5, 1), xytext=(0, 10),
                         xycoords='axes fraction', textcoords='offset points',
                         size='large', ha='center', va='baseline')        
