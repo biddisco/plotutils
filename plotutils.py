@@ -11,7 +11,12 @@ from IPython.display import Image, display, HTML
 from PIL import Image
 import glob
 
-# -------------------------------------------------
+# =================================================================
+# Returns true if running inside a jupyter notebook, 
+# false when running as a simple python script
+# useful for handling command line options or
+# setting up notebook defaults
+# =================================================================
 def is_notebook():
     try:
         shell = get_ipython().__class__.__name__
@@ -24,30 +29,53 @@ def is_notebook():
     except NameError:
         return False      # Probably standard Python interpreter
 
-# -------------------------------------------------
+# =================================================================
+# customize/configure the size of jupyter output
+# inside a notebook (window width)
+# =================================================================
 if is_notebook():
     # this makes the notebook wider on a larger screen using %x of the display
     display(HTML("<style>.container { width:100% !important; }</style>"))
                  
-# Tell pandas to display more columns without wrapping in dataframe output\n",
+# =================================================================
+# Tell pandas to display more columns without wrapping in dataframe output
+# =================================================================
 pd.set_option('display.max_rows',    30)
 pd.set_option('display.max_columns', 30)
 pd.set_option('display.width',       1000)
 
-# -------------------------------------------------
+# =================================================================
 # For debugging : print any object
+# uses the default print function for any object 
+# - pandas dataframes will be limited in output size
+# =================================================================
 def title_print(string, thing):
     print('\n' + '-'*20, '\n' + string, '\n' + '-'*20)
     print(thing)
     print('\n' + '-'*20)
 
-# -------------------------------------------------
-# For debugging print all data in a dataframe (warning: can be huge)
+# =================================================================
+# For debugging : print all data in a dataframe 
+# warning: this can produce huge output since pandas will
+# show all/unlimited rows/columns
+# =================================================================
 def title_print_all(string, thing):
     print('\n' + '-'*20, '\n' + string, '\n' + '-'*20)
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
+    with pd.option_context('display.max_rows', None, 
+                           'display.max_columns', None, 
+                           'display.width', 1000):
         print(thing)
     print('\n' + '-'*20)
+
+# =================================================================
+# Trim spaces from all strings in dataframe
+# =================================================================
+def trim_all_columns(df):
+    """
+    Trim whitespace from ends of each value across all series in dataframe
+    """
+    trim_strings = lambda x: x.strip() if isinstance(x, str) else x
+    return df.applymap(trim_strings)
 
 # =================================================================
 # Takes axes from subplot and makes a grid even when r==1 or c==1
@@ -66,6 +94,7 @@ def axes_to_row_col_grid(rows, cols, ax):
 # =================================================================
 global_dataframe = pd.DataFrame()
 global_datadict = {}
+
 def add_to_global_data(data, dirname):
     global global_dataframe
     global global_datadict
@@ -125,7 +154,7 @@ class axis(object):
 # =================================================================
 # Holder for axis info for plot routine
 # =================================================================
-class column(object):
+class rowcol(object):
     def __init__(self,
                  label='No Column',
                  format=lambda v: str(v),
@@ -136,9 +165,23 @@ class column(object):
         self.fontsize = fontsize
         
 # =================================================================
+# Holder for legend params
+# =================================================================
+class legend(object):
+    def __init__(self, 
+                 loc='best',
+                 ncol=1,
+                 fontsize=12):
+        
+        self.loc      = loc
+        self.ncol     = ncol
+        self.fontsize = fontsize
+        
+# =================================================================
 # Plot combinations of series
 # =================================================================
-def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, cparams=None, size=(8,4)):
+def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
+                      cparams=None, rparams=None, lparams=None, size=(8,4)):
     
     # select only the data wanted
     for series in select:
@@ -157,12 +200,14 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, cpar
         num_cols = 0
         for col in Cols:
             unique_col_entries = data[col].unique().tolist()
+            unique_col_entries.sort()
             num_cols = num_cols + len(unique_col_entries)
     if len(Rows)>0:
         #print('rows', Rows)
         num_rows = 0
         for row in Rows:
             unique_row_entries = data[row].unique().tolist()
+            unique_row_entries.sort()
             num_rows = num_rows + len(unique_row_entries)
 
     #print('Using Rows {}, Cols {}'.format(num_rows, num_cols))
@@ -200,9 +245,11 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, cpar
         head, tail = groups[0], groups[1:]
         #print('Grouping by', head)
         for g, grps in data.groupby(head):
+            label = str(head) + ':' + str(g)
+            label = str(prefix) + label
             if len(tail)>0:
                 #print('Recursing into ({}) {}'.format(tail, g))
-                plot_series_recursive(grps, x, y, tail, (str(prefix) + ' ' + str(head) + '(' + str(g) + ')') if prefix!='' else (str(head) + '(' + str(g) + ')'), ax1)
+                plot_series_recursive(grps, x, y, tail, label + ', ', ax1)
             else:
                 #print('Processing into ({}) {}'.format(head, g))
                 # average each series in case three are duplicates
@@ -213,7 +260,7 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, cpar
                     linestyle='-',
                     marker=next(localmarkers),
                     markersize=6,
-                    label = (str(prefix) + ' ' + str(head) + '(' + str(g) + ')') if prefix!='' else (str(head) + '(' + str(g) + ')')
+                    label = label
                 )
   
     # ------------------------------------------------
@@ -264,15 +311,17 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, cpar
                 ax1.yaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(yparams.minloc))
             if (yparams.majloc is not None) and (yparams.minloc is not None):
                 ax1.yaxis.set_ticks_position('both')
-                
-            ax1.legend(loc='best', ncol=1)    
+               
+            if lparams is not None:
+                ax1.legend(loc=lparams.loc, ncol=lparams.ncol)
+            else:
+                ax1.legend(loc='best', ncol=1)    
     
     if len(Cols)>0:
         for txt, col in zip(unique_col_entries, range(len(unique_col_entries))):
             ax = graph_rows_cols[0][col]
-            if (cparams is not None): 
-                if (cparams.format is not None):
-                    txt = cparams.format(Cols[0], txt)
+            if (cparams is not None) and (cparams.format is not None):
+                txt = cparams.format(Cols[0], txt)
             ax.annotate(txt, 
                         xy=(0.5, 1), xytext=(0, 10),
                         xycoords='axes fraction', textcoords='offset points',
@@ -280,7 +329,9 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams, cpar
     if len(Rows)>0:
         for txt, row in zip(unique_row_entries, range(len(unique_row_entries))):
             ax = graph_rows_cols[row][0]
-            ax.annotate(str(Rows[0]) + ' ' + str(txt), 
+            if (rparams is not None) and (rparams.format is not None):
+                txt = rparams.format(Rows[0], txt)
+            ax.annotate(txt, 
                 xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - 32, 0),
                 xycoords=ax.yaxis.label, textcoords='offset points',
                 size='large', ha='right', va='center')
