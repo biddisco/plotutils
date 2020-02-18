@@ -8,7 +8,6 @@ import itertools
 import os
 import importlib
 from IPython.display import Image, display, HTML
-from PIL import Image
 import glob
 
 # =================================================================
