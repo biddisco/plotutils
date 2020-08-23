@@ -196,7 +196,7 @@ def load_csv_files_in_dir(dirname):
     for filename in filenames :
         data = pd.concat([data, read_pandas_csv(filename)], sort=False)
     add_to_all_data(data, dirname)
-    
+
 # =================================================================
 # Holder for axis info for plot routine
 # =================================================================
@@ -226,30 +226,30 @@ class rowcol(object):
                  label='No Column',
                  format=lambda v: str(v),
                  fontsize=12):
-        
+
         self.label    = label
         self.format   = format
         self.fontsize = fontsize
-        
+
 # =================================================================
 # Holder for legend params
 # =================================================================
 class legend(object):
-    def __init__(self, 
+    def __init__(self,
                  loc='best',
                  ncol=1,
                  fontsize=12):
-        
+
         self.loc      = loc
         self.ncol     = ncol
         self.fontsize = fontsize
-        
+
 # =================================================================
 # Plot combinations of series
 # =================================================================
 def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
                       cparams=None, rparams=None, lparams=None, size=(8,4)):
-    
+
     # select only the data wanted
     for series in select:
         #print('selecting', series, select[series])
@@ -277,8 +277,18 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
             unique_row_entries.sort()
             num_rows = num_rows + len(unique_row_entries)
 
+    # don't like having a single row with many graphs crammed into it, so use multiple rows
+    single_row_modified = False
+    mod_rows = num_rows
+    mod_cols = num_cols
+    if len(Rows)==0 and num_cols>1:
+        mod_rows = math.floor(math.sqrt(num_cols)+1)
+        mod_cols = math.ceil(1.0*num_cols/mod_rows)
+        single_row_modified = True
+        print('Overriding graph layout cols={}, rows={}'.format(mod_cols,mod_rows))
+
     #print('Using Rows {}, Cols {}'.format(num_rows, num_cols))
-    
+
     # break the wanted data into groups of series
     grouplist = []
     xvar = ''
@@ -294,10 +304,10 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
             grouplist = plotvars[entry] + grouplist
 
     #print('x', xvar, 'y', yvar, 'Grouplist', grouplist)
-    width  = np.clip(size[0]*num_cols, size[0], 20)
-    height = size[1]*num_rows 
-    fig, axes = plt.subplots(nrows = num_rows, ncols = num_cols, figsize=(width,height), dpi= 80, facecolor='w', edgecolor='k')    
-    graph_rows_cols = axes_to_row_col_grid(num_rows, num_cols, axes)
+    width  = np.clip(size[0]*mod_cols, size[0], 20)
+    height = size[1]*mod_rows
+    fig, axes = plt.subplots(nrows = mod_rows, ncols = mod_cols, figsize=(width,height), dpi= 80, facecolor='w', edgecolor='k')
+    graph_rows_cols = axes_to_row_col_grid(mod_rows, mod_cols, axes)
     #print(num_rows, num_cols, graph_rows_cols)
 
     markers        = ('+', '.', 'o', '*', '^', 's', 'v', '<', '>', '8', 's', 'p', 'h', 'H', 'D', 'd', ',')
@@ -305,9 +315,9 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
     majorLocator   = MultipleLocator(5)
     majorFormatter = FormatStrFormatter('%d')
     minorLocator   = MultipleLocator(1)
-        
+
     grouplen = 1
-    
+
     def plot_series_recursive(data, x, y, groups, prefix, ax1):
         head, tail = groups[0], groups[1:]
         #print('Grouping by', head)
@@ -321,7 +331,7 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
                 #print('Processing into ({}) {}'.format(head, g))
                 # average each series in case three are duplicates
                 mean = grps.groupby([head, x]).mean().reset_index()
-                
+
                 temp = ax1.plot(mean[x], mean[y],
                     #marker=markers[l],
                     linestyle='-',
@@ -329,7 +339,7 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
                     markersize=6,
                     label = label
                 )
-  
+
     # ------------------------------------------------
     for row in range(num_rows):
         rsubset = data
@@ -341,17 +351,22 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
             if num_cols>1:
                 #print('Selecting column using ', Cols[0], unique_col_entries[col])
                 csubset = rsubset[rsubset[Cols[0]]==unique_col_entries[col]]
-            
-            ax1 = graph_rows_cols[row][col]
+            if not single_row_modified:
+                ax1 = graph_rows_cols[row][col]
+            else:
+                mcol = col %  mod_cols
+                mrow = col // mod_cols
+                ax1 = graph_rows_cols[mrow][mcol]
+
             # restart markers and colours from beginning of list for each new graph
-            localmarkers = itertools.cycle(markers)    
+            localmarkers = itertools.cycle(markers)
             plot_series_recursive(csubset, xvar, yvar, grouplist, '', ax1)
 
             # ------------------------------------------------
             if xparams.limits is not None:
                 ax1.set_xlim(xparams.limits[0], xparams.limits[1])
             if xparams.scale is not None:
-                ax1.set_xscale(xparams.scale, basex=xparams.base)
+                ax1.set_xscale(xparams.scale) # , basex=xparams.base)
             if xparams.label is not None:
                 ax1.set_xlabel(xparams.label, fontsize=xparams.fontsize)
             if xparams.format is not None:
@@ -362,12 +377,12 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
                 ax1.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(xparams.minloc))
             if (xparams.majloc is not None) and (xparams.minloc is not None):
                 ax1.xaxis.set_ticks_position('both')
-                
+
             # ------------------------------------------------
             if yparams.limits is not None:
                 ax1.set_ylim(yparams.limits[0], yparams.limits[1])
             if yparams.scale is not None:
-                ax1.set_yscale(yparams.scale, basey=yparams.base)
+                ax1.set_yscale(yparams.scale) #, basey=yparams.base)
             if yparams.label is not None:
                 ax1.set_ylabel(yparams.label, fontsize=yparams.fontsize)
             if yparams.format is not None:
@@ -378,29 +393,41 @@ def plot_graph_series(data, Rows, Cols, select, plotvars, xparams, yparams,
                 ax1.yaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(yparams.minloc))
             if (yparams.majloc is not None) and (yparams.minloc is not None):
                 ax1.yaxis.set_ticks_position('both')
-               
+
             if lparams is not None:
                 ax1.legend(loc=lparams.loc, ncol=lparams.ncol)
             else:
-                ax1.legend(loc='best', ncol=1)    
-    
-    if len(Cols)>0:
+                ax1.legend(loc='best', ncol=1)
+
+    if single_row_modified:
         for txt, col in zip(unique_col_entries, range(len(unique_col_entries))):
-            ax = graph_rows_cols[0][col]
+            mcol = col %  mod_cols
+            mrow = col // mod_cols
+            ax = graph_rows_cols[mrow][mcol]
             if (cparams is not None) and (cparams.format is not None):
                 txt = cparams.format(Cols[0], txt)
-            ax.annotate(txt, 
+            ax.annotate(txt,
                         xy=(0.5, 1), xytext=(0, 10),
                         xycoords='axes fraction', textcoords='offset points',
-                        size='large', ha='center', va='baseline')        
-    if len(Rows)>0:
-        for txt, row in zip(unique_row_entries, range(len(unique_row_entries))):
-            ax = graph_rows_cols[row][0]
-            if (rparams is not None) and (rparams.format is not None):
-                txt = rparams.format(Rows[0], txt)
-            ax.annotate(txt, 
-                xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - 32, 0),
-                xycoords=ax.yaxis.label, textcoords='offset points',
-                size='large', ha='right', va='center')
+                        size='large', ha='center', va='baseline')
+    else:
+        if len(Cols)>0:
+            for txt, col in zip(unique_col_entries, range(len(unique_col_entries))):
+                ax = graph_rows_cols[0][col]
+                if (cparams is not None) and (cparams.format is not None):
+                    txt = cparams.format(Cols[0], txt)
+                ax.annotate(txt,
+                            xy=(0.5, 1), xytext=(0, 10),
+                            xycoords='axes fraction', textcoords='offset points',
+                            size='large', ha='center', va='baseline')
+        if len(Rows)>0:
+            for txt, row in zip(unique_row_entries, range(len(unique_row_entries))):
+                ax = graph_rows_cols[row][0]
+                if (rparams is not None) and (rparams.format is not None):
+                    txt = rparams.format(Rows[0], txt)
+                ax.annotate(txt,
+                    xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - 32, 0),
+                    xycoords=ax.yaxis.label, textcoords='offset points',
+                    size='large', ha='right', va='center')
     plt.tight_layout()
-    return fig  
+    return fig
