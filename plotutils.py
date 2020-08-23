@@ -4,14 +4,17 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+import math
+from tabulate import tabulate
 import itertools
 import os
 import importlib
 from IPython.display import Image, display, HTML
 import glob
+import re
 
 # =================================================================
-# Returns true if running inside a jupyter notebook, 
+# Returns true if running inside a jupyter notebook,
 # false when running as a simple python script
 # useful for handling command line options or
 # setting up notebook defaults
@@ -35,7 +38,7 @@ def is_notebook():
 if is_notebook():
     # this makes the notebook wider on a larger screen using %x of the display
     display(HTML("<style>.container { width:100% !important; }</style>"))
-                 
+
 # =================================================================
 # Tell pandas to display more columns without wrapping in dataframe output
 # =================================================================
@@ -45,7 +48,7 @@ pd.set_option('display.width',       1000)
 
 # =================================================================
 # For debugging : print any object
-# uses the default print function for any object 
+# uses the default print function for any object
 # - pandas dataframes will be limited in output size
 # =================================================================
 def title_print(string, thing):
@@ -54,17 +57,75 @@ def title_print(string, thing):
     print('\n' + '-'*20)
 
 # =================================================================
-# For debugging : print all data in a dataframe 
+# For debugging : print all data in a dataframe
 # warning: this can produce huge output since pandas will
 # show all/unlimited rows/columns
 # =================================================================
 def title_print_all(string, thing):
     print('\n' + '-'*20, '\n' + string, '\n' + '-'*20)
-    with pd.option_context('display.max_rows', None, 
-                           'display.max_columns', None, 
+    with pd.option_context('display.max_rows', None,
+                           'display.max_columns', None,
                            'display.width', 1000):
         print(thing)
     print('\n' + '-'*20)
+
+# =================================================================
+# For debugging : print a dataframe (summary including column types)
+# =================================================================
+def title_print_dataframe(string, df):
+    print('\n' + '-'*20, '\n' + string, '\n' + '-'*20)
+    print(df.dtypes)
+    print(df)
+    print('\n' + '-'*20)
+
+# =================================================================
+# For debugging : print dataframe in table form
+# =================================================================
+def tab_print(string, dframe, show_index=True):
+    print('\n' + '-'*20, '\n' + string, '\n' + '-'*20)
+    print(tabulate(dframe, headers='keys', tablefmt='psql', floatfmt=".1f", showindex=show_index))
+    print('\n' + '-'*20)
+
+# =================================================================
+# Print a dataframe with column headers aligned a bit better when they are wrong
+# nb. can mess up when index has spaces, such as "date time"
+# =================================================================
+blanks = r'^ *([a-zA-Z_0-9-]*) .*$'
+blanks_comp = re.compile(blanks)
+
+def pretty_to_string(df):
+
+    def find_index_in_line(line):
+        index = 0
+        spaces = False
+        for ch in line:
+            if ch == ' ':
+                spaces = True
+            elif spaces:
+                break
+            index += 1
+        return index
+
+    lines = df.to_string().split('\n')
+    header = lines[0]
+    m = blanks_comp.match(header)
+    indices = []
+    if m:
+        st_index = m.start(1)
+        indices.append(st_index)
+
+    non_header_lines = lines[1:len(lines)]
+
+    for line in non_header_lines:
+        index = find_index_in_line(line)
+        indices.append(index)
+
+    mn = np.min(indices)
+    newlines = []
+    for l in lines:
+        newlines.append(l[mn:len(l)])
+
+    return '\n'.join(newlines)
 
 # =================================================================
 # Trim spaces from all strings in dataframe
