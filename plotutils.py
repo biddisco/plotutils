@@ -137,6 +137,13 @@ def trim_all_columns(df):
     trim_strings = lambda x: x.strip() if isinstance(x, str) else x
     return df.applymap(trim_strings)
 
+# -------------------------------------------------
+# Convenience function to remove unwanted columns
+# -------------------------------------------------
+def drop_columns_except(df, cols):
+    df.drop(df.columns.difference(cols), axis=1, inplace=True)
+    return df
+
 # =================================================================
 # Takes axes from subplot and makes a grid even when r==1 or c==1
 # access grid using axes[r][c]
